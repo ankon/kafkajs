@@ -17,6 +17,8 @@ const PRIVATE = {
   CLUSTER_RETRY: Symbol('private:Kafka:clusterRetry'),
   LOGGER: Symbol('private:Kafka:logger'),
   OFFSETS: Symbol('private:Kafka:offsets'),
+  CLUSTER: Symbol('private:Kafka:cluster'),
+  INSTRUMENTATION_EMITTER: Symbol('private:Kafka:instrumentationEmitter'),
 }
 
 module.exports = class Client {
@@ -34,10 +36,15 @@ module.exports = class Client {
     logLevel = INFO,
     logCreator = LoggerConsole,
     allowExperimentalV011 = true,
+
+    metadataMaxAge,
+    allowAutoTopicCreation,
+    maxInFlightRequests,
   }) {
     this[PRIVATE.OFFSETS] = new Map()
     this[PRIVATE.LOGGER] = createLogger({ level: logLevel, logCreator })
     this[PRIVATE.CLUSTER_RETRY] = retry
+    this[PRIVATE.INSTRUMENTATION_EMITTER] = new InstrumentationEventEmitter()
     this[PRIVATE.CREATE_CLUSTER] = ({
       metadataMaxAge = 300000,
       allowAutoTopicCreation = true,
@@ -65,6 +72,13 @@ module.exports = class Client {
         maxInFlightRequests,
         isolationLevel,
       })
+    this[PRIVATE.CLUSTER] = this[PRIVATE.CREATE_CLUSTER]({
+      metadataMaxAge,
+      allowAutoTopicCreation,
+      maxInFlightRequests,
+      isolationLevel: ISOLATION_LEVEL.READ_UNCOMMITTED,
+      instrumentationEmitter: this[PRIVATE.INSTRUMENTATION_EMITTER],
+    })
   }
 
   /**
@@ -80,13 +94,24 @@ module.exports = class Client {
     transactionTimeout,
     maxInFlightRequests,
   } = {}) {
-    const instrumentationEmitter = new InstrumentationEventEmitter()
-    const cluster = this[PRIVATE.CREATE_CLUSTER]({
-      metadataMaxAge,
-      allowAutoTopicCreation,
-      maxInFlightRequests,
-      instrumentationEmitter,
-    })
+    const sharedCluster =
+      typeof metadataMaxAge === 'undefined' &&
+      typeof allowAutoTopicCreation === 'undefined' &&
+      typeof maxInFlightRequests === 'undefined'
+    let cluster
+    let instrumentationEmitter
+    if (sharedCluster) {
+      instrumentationEmitter = this[PRIVATE.INSTRUMENTATION_EMITTER]
+      cluster = this[PRIVATE.CLUSTER]
+    } else {
+      instrumentationEmitter = new InstrumentationEventEmitter()
+      cluster = this[PRIVATE.CREATE_CLUSTER]({
+        metadataMaxAge,
+        allowAutoTopicCreation,
+        maxInFlightRequests,
+        instrumentationEmitter,
+      })
+    }
 
     return createProducer({
       retry: { ...this[PRIVATE.CLUSTER_RETRY], ...retry },
@@ -123,14 +148,26 @@ module.exports = class Client {
       ? ISOLATION_LEVEL.READ_UNCOMMITTED
       : ISOLATION_LEVEL.READ_COMMITTED
 
-    const instrumentationEmitter = new InstrumentationEventEmitter()
-    const cluster = this[PRIVATE.CREATE_CLUSTER]({
-      metadataMaxAge,
-      allowAutoTopicCreation,
-      maxInFlightRequests,
-      isolationLevel,
-      instrumentationEmitter,
-    })
+    const sharedCluster =
+      typeof metadataMaxAge === 'undefined' &&
+      typeof allowAutoTopicCreation === 'undefined' &&
+      typeof maxInFlightRequests === 'undefined' &&
+      !readUncommitted
+    let cluster
+    let instrumentationEmitter
+    if (sharedCluster) {
+      instrumentationEmitter = this[PRIVATE.INSTRUMENTATION_EMITTER]
+      cluster = this[PRIVATE.CLUSTER]
+    } else {
+      instrumentationEmitter = new InstrumentationEventEmitter()
+      cluster = this[PRIVATE.CREATE_CLUSTER]({
+        metadataMaxAge,
+        allowAutoTopicCreation,
+        maxInFlightRequests,
+        instrumentationEmitter,
+        isolationLevel,
+      })
+    }
 
     return createConsumer({
       retry: { ...this[PRIVATE.CLUSTER_RETRY], ...retry },
