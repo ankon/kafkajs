@@ -31,6 +31,8 @@ services:
       - '9094:9094'
     environment:
       KAFKA_BROKER_ID: '0'
+      KAFKA_BROKER_RACK: 'kafka1-rack'
+      KAFKA_REPLICA_SELECTOR_CLASS: 'org.apache.kafka.common.replica.RackAwareReplicaSelector'
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,SSL:SSL,SSL_HOST:SSL,SASL_SSL:SASL_SSL,SASL_SSL_HOST:SASL_SSL
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka1:29092,PLAINTEXT_HOST://localhost:9092,SSL://kafka1:29093,SSL_HOST://localhost:9093,SASL_SSL://kafka1:29094,SASL_SSL_HOST://localhost:9094
@@ -47,7 +49,7 @@ services:
       KAFKA_OPTS: '-Djava.security.auth.login.config=/opt/kafka/config/server-jaas.conf'
       # suppress verbosity
       # https://github.com/confluentinc/cp-docker-images/blob/master/debian/kafka/include/etc/confluent/docker/log4j.properties.template
-      KAFKA_LOG4J_LOGGERS: 'kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO'
+      KAFKA_LOG4J_LOGGERS: 'kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO,kafka.request.logger=DEBUG,kafka.server=DEBUG'
     volumes:
       - ./testHelpers/certs/kafka.server.keystore.jks:/etc/kafka/secrets/kafka.server.keystore.jks:ro,z
       - ./testHelpers/certs/kafka.server.truststore.jks:/etc/kafka/secrets/kafka.server.truststore.jks:ro,z
@@ -74,6 +76,8 @@ services:
       - '9097:9097'
     environment:
       KAFKA_BROKER_ID: '1'
+      KAFKA_BROKER_RACK: 'kafka2-rack'
+      KAFKA_REPLICA_SELECTOR_CLASS: 'org.apache.kafka.common.replica.RackAwareReplicaSelector'
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,SSL:SSL,SSL_HOST:SSL,SASL_SSL:SASL_SSL,SASL_SSL_HOST:SASL_SSL
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka2:29095,PLAINTEXT_HOST://localhost:9095,SSL://kafka2:29096,SSL_HOST://localhost:9096,SASL_SSL://kafka2:29097,SASL_SSL_HOST://localhost:9097
@@ -90,7 +94,7 @@ services:
       KAFKA_OPTS: '-Djava.security.auth.login.config=/opt/kafka/config/server-jaas.conf'
       # suppress verbosity
       # https://github.com/confluentinc/cp-docker-images/blob/master/debian/kafka/include/etc/confluent/docker/log4j.properties.template
-      KAFKA_LOG4J_LOGGERS: 'kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO'
+      KAFKA_LOG4J_LOGGERS: 'kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO,kafka.request.logger=DEBUG,kafka.server=DEBUG'
     volumes:
       - ./testHelpers/certs/kafka.server.keystore.jks:/etc/kafka/secrets/kafka.server.keystore.jks:ro,z
       - ./testHelpers/certs/kafka.server.truststore.jks:/etc/kafka/secrets/kafka.server.truststore.jks:ro,z
@@ -117,6 +121,8 @@ services:
       - '9100:9100'
     environment:
       KAFKA_BROKER_ID: '2'
+      KAFKA_BROKER_RACK: 'kafka3-rack'
+      KAFKA_REPLICA_SELECTOR_CLASS: 'org.apache.kafka.common.replica.RackAwareReplicaSelector'
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,SSL:SSL,SSL_HOST:SSL,SASL_SSL:SASL_SSL,SASL_SSL_HOST:SASL_SSL
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka3:29098,PLAINTEXT_HOST://localhost:9098,SSL://kafka3:29099,SSL_HOST://localhost:9099,SASL_SSL://kafka3:29100,SASL_SSL_HOST://localhost:9100
@@ -133,7 +139,7 @@ services:
       KAFKA_OPTS: '-Djava.security.auth.login.config=/opt/kafka/config/server-jaas.conf'
       # suppress verbosity
       # https://github.com/confluentinc/cp-docker-images/blob/master/debian/kafka/include/etc/confluent/docker/log4j.properties.template
-      KAFKA_LOG4J_LOGGERS: 'kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO'
+      KAFKA_LOG4J_LOGGERS: 'kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO,kafka.request.logger=DEBUG,kafka.server=DEBUG'
     volumes:
       - ./testHelpers/certs/kafka.server.keystore.jks:/etc/kafka/secrets/kafka.server.keystore.jks:ro,z
       - ./testHelpers/certs/kafka.server.truststore.jks:/etc/kafka/secrets/kafka.server.truststore.jks:ro,z

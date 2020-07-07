@@ -14,6 +14,7 @@ const {
 } = require('testHelpers')
 const { Types: Compression } = require('../../protocol/message/compression')
 const ISOLATION_LEVEL = require('../../protocol/isolationLevel')
+const { afterEach } = require('jest-circus')
 
 const minBytes = 1
 const maxBytes = 10485760 // 10MB
@@ -32,7 +33,13 @@ expect.extend({
 })
 
 describe('Broker > Fetch', () => {
-  let topicName, seedBroker, broker, newBrokerData
+  /** @type {string} */
+  let topicName
+  /** @type {Broker} */
+  let seedBroker
+  /** @type {Broker} */
+  let broker
+  let newBrokerData
 
   const headerFor = message => {
     const keys = Object.keys(message.headers)
@@ -534,6 +541,145 @@ describe('Broker > Fetch', () => {
       await broker.produce({ topicData, compression: Compression.GZIP })
       fetchResponse = await broker.fetch({ maxWaitTime, minBytes, maxBytes, topics })
       expect(fetchResponse.responses[0].partitions[0].highWatermark).toEqual('6')
+    })
+  })
+
+  describe('rack awareness', () => {
+    let metadata
+    /** @type {Broker} */
+    let leader
+    /** @type {Broker} */
+    let notLeader
+
+    beforeEach(async () => {
+      // Create a topic with replicas on each broker
+      topicName = `test-topic-${secureRandom()}`
+      await createTopic({
+        topic: topicName,
+        partitions: 1,
+        replicas: 3,
+      })
+
+      metadata = await retryProtocol(
+        'LEADER_NOT_AVAILABLE',
+        async () => await seedBroker.metadata([topicName])
+      )
+    })
+
+    afterEach(async () => {
+      leader && (await leader.disconnect())
+      notLeader && (await notLeader.disconnect())
+    })
+
+    test('has preferred replica information', async () => {
+      const targetPartition = 0
+      const messages = createMessages()
+      const topicData = createTopicData(targetPartition, messages)
+
+      // Collect all possible rack values
+      // XXX: If there is none we will fail, but maybe we could instead skip the test?
+      const rackValues = metadata.brokers.map(({ rack }) => rack).filter(rack => Boolean(rack))
+      expect(rackValues.length).not.toEqual(0)
+
+      // Find leader of partition
+      const leaderNodeId = metadata.topicMetadata[0].partitionMetadata[0].leader
+
+      // Connect to the leader to produce message
+      const leaderBrokerData = metadata.brokers.find(b => b.nodeId === leaderNodeId)
+      leader = new Broker({
+        connection: createConnection(leaderBrokerData),
+        logger: newLogger(),
+        allowExperimentalV011: true,
+      })
+      await leader.connect()
+      console.log(`leader: ${leaderBrokerData.rack}, nodeId: ${leaderBrokerData.nodeId}`)
+
+      // Connect to a not-leader broker
+      const notLeaderBrokerData = metadata.brokers.find(b => b.nodeId !== leaderNodeId)
+      notLeader = new Broker({
+        connection: createConnection(notLeaderBrokerData),
+        logger: newLogger(),
+        allowExperimentalV011: true,
+      })
+      await notLeader.connect()
+      console.log(`not-leader: ${notLeaderBrokerData.rack}, nodeId: ${notLeaderBrokerData.nodeId}`)
+
+      await leader.produce({ topicData })
+      const topics = [
+        {
+          topic: topicName,
+          partitions: [
+            {
+              partition: targetPartition,
+              fetchOffset: 0,
+              maxBytes: maxBytesPerPartition,
+            },
+          ],
+        },
+      ]
+
+      // We have now a couple of cases
+      // 1. The broker is the leader, and is in the same rack as the client
+      //    If we query this one we expect messages in the response, and the preferred replica is -1
+      const leaderSameRackFetchResponse = await leader.fetch({
+        maxWaitTime,
+        minBytes,
+        maxBytes,
+        topics,
+        rackId: leaderBrokerData.rack,
+      })
+      const leaderSameRackPartitionResponse = leaderSameRackFetchResponse.responses[0].partitions[0]
+      expect(leaderSameRackPartitionResponse.preferredReadReplica).toEqual(-1)
+      expect(leaderSameRackPartitionResponse.messages.length).not.toEqual(0)
+
+      // 2. The broker is the leader, but not in the same rack
+      //    If we query this one we expect messages in the response, and the preferred replica should be set
+      let otherRack =
+        rackValues[(rackValues.indexOf(leaderBrokerData.rack) + 1) % rackValues.length]
+      console.log(`leader other rack: ${otherRack}`)
+      const leaderOtherRackFetchResponse = await leader.fetch({
+        maxWaitTime,
+        minBytes,
+        maxBytes,
+        topics,
+        rackId: otherRack,
+      })
+      const leaderOtherRackPartitionResponse =
+        leaderOtherRackFetchResponse.responses[0].partitions[0]
+      expect(leaderOtherRackPartitionResponse.preferredReadReplica).not.toEqual(-1)
+      expect(leaderOtherRackPartitionResponse.messages.length).toEqual(0)
+
+      // 3. The broker is not the leader, but is in the same rack as the client
+      //    If we query this one we expect messages in the response, and the preferred replica should be set
+      const notLeaderSameRackFetchResponse = await notLeader.fetch({
+        maxWaitTime,
+        minBytes,
+        maxBytes,
+        topics,
+        rackId: notLeaderBrokerData.rack,
+      })
+      const notLeaderSameRackPartitionResponse =
+        notLeaderSameRackFetchResponse.responses[0].partitions[0]
+      expect(notLeaderSameRackPartitionResponse.preferredReadReplica).toEqual(-1)
+      expect(notLeaderSameRackPartitionResponse.messages.length).not.toEqual(0)
+
+      // 4. The broker is neither the leader, nor in the same rack
+      //    If we query this one we will not get messages and only a pointer to the preferred replica
+      otherRack = rackValues[(rackValues.indexOf(notLeaderBrokerData.rack) + 1) % rackValues.length]
+      console.log(`not-leader other rack: ${otherRack}`)
+      const notLeaderOtherRackFetchResponse = await notLeader.fetch({
+        maxWaitTime,
+        minBytes,
+        maxBytes,
+        topics,
+        rackId: otherRack,
+      })
+      const notLeaderOtherRackPartitionResponse =
+        notLeaderOtherRackFetchResponse.responses[0].partitions[0]
+      expect(notLeaderOtherRackPartitionResponse.preferredReadReplica).not.toEqual(-1)
+      expect(notLeaderOtherRackPartitionResponse.messages.length).toEqual(0)
+
+      // TODO: We need tests for the consumer group as well
     })
   })
 
