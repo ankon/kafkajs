@@ -14,6 +14,7 @@ const PRIVATE = {
  * Each node in a Kafka cluster is called broker. This class contains
  * the high-level operations a node can perform.
  *
+ * @type {import("../../types").Broker}
  * @param {Connection} connection
  * @param {Object} logger
  * @param {Object} [versions=null] The object with all available versions and APIs
@@ -182,7 +183,7 @@ module.exports = class Broker {
    * @public
    * @param {Array} [topics=[]] An array of topics to fetch metadata for.
    *                            If no topics are specified fetch metadata for all topics
-   * @returns {Promise}
+   * @returns {ReturnType<import("../../types").Broker['metadata']>}
    */
   async metadata(topics = []) {
     const metadata = this.lookupRequest(apiKeys.Metadata, requests.Metadata)
