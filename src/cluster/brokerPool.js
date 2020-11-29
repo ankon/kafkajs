@@ -12,12 +12,13 @@ const hasBrokerBeenReplaced = (broker, { host, port, rack }) =>
 
 module.exports = class BrokerPool {
   /**
-   * @param {ConnectionBuilder} connectionBuilder
-   * @param {Logger} logger
-   * @param {Object} retry
-   * @param {number} authenticationTimeout
-   * @param {number} reauthenticationThreshold
-   * @param {number} metadataMaxAge
+   * @param {object} options
+   * @param {ConnectionBuilder} options.connectionBuilder
+   * @param {Logger} options.logger
+   * @param {Object} options.retry
+   * @param {number} options.authenticationTimeout
+   * @param {number} options.reauthenticationThreshold
+   * @param {number} options.metadataMaxAge
    */
   constructor({
     connectionBuilder,
