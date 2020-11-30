@@ -13,7 +13,7 @@ const {
 } = require('../errors')
 const COORDINATOR_TYPES = require('../protocol/coordinatorTypes')
 
-const { keys } = Object
+const { entries } = Object
 
 const mergeTopics = (obj, { topic, partitions }) => ({
   ...obj,
@@ -433,24 +433,23 @@ module.exports = class Cluster {
 
       topicConfigurations[topic] = { timestamp }
 
-      keys(partitionsPerLeader).map(nodeId => {
+      entries(partitionsPerLeader).map(([nodeId, leaderPartitions]) => {
         partitionsPerBroker[nodeId] = partitionsPerBroker[nodeId] || {}
         partitionsPerBroker[nodeId][topic] = partitions.filter(p =>
-          partitionsPerLeader[nodeId].includes(p.partition)
+          leaderPartitions.includes(p.partition)
         )
       })
     }
 
     // Create a list of requests to fetch the offset of all partitions
-    const requests = keys(partitionsPerBroker).map(async nodeId => {
+    const requests = entries(partitionsPerBroker).map(async ([nodeId, partitions]) => {
       const broker = await this.findBroker({ nodeId })
-      const partitions = partitionsPerBroker[nodeId]
 
       const { responses: topicOffsets } = await broker.listOffsets({
         isolationLevel: this.isolationLevel,
-        topics: keys(partitions).map(topic => ({
+        topics: entries(partitions).map(([topic, topicPartitions]) => ({
           topic,
-          partitions: partitions[topic].map(addDefaultOffset(topic)),
+          partitions: topicPartitions.map(addDefaultOffset(topic)),
         })),
       })
 
@@ -461,9 +460,9 @@ module.exports = class Cluster {
     const responses = await Promise.all(requests)
     const partitionsPerTopic = flatten(responses).reduce(mergeTopics, {})
 
-    return keys(partitionsPerTopic).map(topic => ({
+    return entries(partitionsPerTopic).map(([topic, partitions]) => ({
       topic,
-      partitions: partitionsPerTopic[topic].map(({ partition, offset }) => ({
+      partitions: partitions.map(({ partition, offset }) => ({
         partition,
         offset,
       })),
