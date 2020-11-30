@@ -523,6 +523,15 @@ export type Logger = {
   debug: (message: string, extra?: object) => void
 }
 
+export interface BrokerMetadata {
+  brokers: Array<{ nodeId: number; host: string; port: number; rack?: string }>
+  topicMetadata: Array<{
+    topicErrorCode: number
+    topic: number
+    partitionMetadata: PartitionMetadata[]
+  }>
+}
+
 export type Broker = {
   isConnected(): boolean
   connect(): Promise<void>
@@ -530,14 +539,7 @@ export type Broker = {
   apiVersions(): Promise<{ [apiKey: number]: { minVersion: number; maxVersion: number } }>
   metadata(
     topics: string[]
-  ): Promise<{
-    brokers: Array<{ nodeId: number; host: string; port: number; rack?: string }>
-    topicMetadata: Array<{
-      topicErrorCode: number
-      topic: number
-      partitionMetadata: PartitionMetadata[]
-    }>
-  }>
+  ): Promise<BrokerMetadata>
   offsetCommit(request: {
     groupId: string
     groupGenerationId: number
