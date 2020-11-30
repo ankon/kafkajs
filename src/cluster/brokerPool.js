@@ -44,6 +44,7 @@ module.exports = class BrokerPool {
       })
 
     this.brokers = {}
+    /** @type {import("../../types").BrokerMetadata | null} */
     this.metadata = null
     this.metadataExpireAt = null
     this.versions = null
