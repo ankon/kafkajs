@@ -216,7 +216,7 @@ module.exports = class BrokerPool {
   }
 
   /**
-   * Only refreshes metadata if the data is stale according to the `metadataMaxAge` param
+   * Only refreshes metadata if the data is stale according to the `metadataMaxAge` param or does not contain information about the provided topics
    *
    * @public
    * @param {Array<String>} topics
