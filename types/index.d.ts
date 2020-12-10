@@ -463,7 +463,7 @@ export type Admin = {
     eventName: ValueOf<AdminEvents>,
     listener: (...args: any[]) => void
   ): RemoveInstrumentationEventListener<typeof eventName>
-  events: AdminEvents
+  readonly events: AdminEvents
 }
 
 export const PartitionAssigners: { roundRobin: PartitionAssigner }
@@ -655,7 +655,7 @@ export type Producer = Sender & {
   connect(): Promise<void>
   disconnect(): Promise<void>
   isIdempotent(): boolean
-  events: ProducerEvents
+  readonly events: ProducerEvents
   on(
     eventName: ValueOf<ProducerEvents>,
     listener: (...args: any[]) => void
@@ -873,7 +873,7 @@ export type Consumer = {
     listener: (...args: any[]) => void
   ): RemoveInstrumentationEventListener<typeof eventName>
   logger(): Logger
-  events: ConsumerEvents
+  readonly events: ConsumerEvents
 }
 
 export enum CompressionTypes {
