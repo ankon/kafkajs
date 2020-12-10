@@ -79,7 +79,7 @@ module.exports = class BrokerPool {
 
   /**
    * @public
-   * @returns {Promise<null>}
+   * @returns {Promise<void>}
    */
   async connect() {
     if (this.hasConnectedBrokers()) {

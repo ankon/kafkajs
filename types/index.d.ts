@@ -518,6 +518,9 @@ export type Logger = {
   error: (message: string, extra?: object) => void
   warn: (message: string, extra?: object) => void
   debug: (message: string, extra?: object) => void
+
+  createNamespace: (namespace: string, logLevel?: logLevel) => Logger
+  setLogLevel: (logLevel: logLevel) => void
 }
 
 export interface BrokerMetadata {
