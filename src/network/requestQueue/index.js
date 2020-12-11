@@ -1,7 +1,7 @@
 const EventEmitter = require('events')
 const SocketRequest = require('./socketRequest')
+const InflightQueue = require('./inflightQueue')
 const events = require('../instrumentationEvents')
-const { KafkaJSInvariantViolation } = require('../../errors')
 
 const PRIVATE = {
   EMIT_QUEUE_SIZE_EVENT: Symbol('private:RequestQueue:emitQueueSizeEvent'),
@@ -39,7 +39,7 @@ module.exports = class RequestQueue extends EventEmitter {
     this.logger = logger
     this.isConnected = isConnected
 
-    this.inflight = new Map()
+    this.inflight = new InflightQueue()
     this.pending = []
 
     /**
@@ -132,14 +132,11 @@ module.exports = class RequestQueue extends EventEmitter {
       instrumentationEmitter: this.instrumentationEmitter,
       requestTimeout,
       send: () => {
-        if (this.inflight.has(correlationId)) {
-          throw new KafkaJSInvariantViolation('Correlation id already exists')
-        }
-        this.inflight.set(correlationId, socketRequest)
+        this.inflight.enqueue(correlationId, socketRequest)
         pushedRequest.sendRequest()
       },
       timeout: () => {
-        this.inflight.delete(correlationId)
+        this.inflight.dequeue(correlationId)
         this.checkPendingRequests()
       },
     })
@@ -174,7 +171,7 @@ module.exports = class RequestQueue extends EventEmitter {
         correlationId: socketRequest.correlationId,
       })
 
-      this.inflight.delete(socketRequest.correlationId)
+      this.inflight.dequeue(socketRequest.correlationId)
       socketRequest.completed({ size: 0, payload: null })
     }
   }
@@ -186,8 +183,7 @@ module.exports = class RequestQueue extends EventEmitter {
    * @param {number} size
    */
   fulfillRequest({ correlationId, payload, size }) {
-    const socketRequest = this.inflight.get(correlationId)
-    this.inflight.delete(correlationId)
+    const socketRequest = this.inflight.dequeue(correlationId)
     this.checkPendingRequests()
 
     if (socketRequest) {
@@ -208,15 +204,14 @@ module.exports = class RequestQueue extends EventEmitter {
    * @param {Error} error
    */
   rejectAll(error) {
-    const requests = [...this.inflight.values(), ...this.pending]
-
-    for (const socketRequest of requests) {
-      socketRequest.rejected(error)
-      this.inflight.delete(socketRequest.correlationId)
-    }
-
-    this.pending = []
+    this.inflight.forEach(socketRequest => socketRequest.rejected(error))
     this.inflight.clear()
+
+    for (const socketRequest of this.pending) {
+      socketRequest.rejected(error)
+    }
+    this.pending = []
+
     this[PRIVATE.EMIT_QUEUE_SIZE_EVENT]()
   }
 

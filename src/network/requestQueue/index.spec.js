@@ -138,11 +138,11 @@ describe('Network > RequestQueue', () => {
           requestQueue.push(request)
 
           // Process the queue except the entry for the request, which should get handled automatically
-          for (const correlationId of requestQueue.inflight.keys()) {
+          requestQueue.inflight.forEach((socketRequest, correlationId) => {
             if (correlationId !== request.entry.correlationId) {
               requestQueue.fulfillRequest({ correlationId, size: 1, payload: Buffer.from('a') })
             }
-          }
+          })
           expect(request.entry.resolve).toHaveBeenCalledWith(
             expect.objectContaining({ size: 0, payload: null })
           )
@@ -190,7 +190,7 @@ describe('Network > RequestQueue', () => {
     })
 
     it('does not allow for a inflight correlation ids collision', async () => {
-      requestQueue.inflight.set(request.entry.correlationId, 'already existing inflight')
+      requestQueue.inflight.enqueue(request.entry.correlationId, 'already existing inflight')
       expect(() => {
         requestQueue.push(request)
       }).toThrowError(new KafkaJSInvariantViolation('Correlation id already exists'))
@@ -245,11 +245,16 @@ describe('Network > RequestQueue', () => {
         const currentInflightSize = requestQueue.inflight.size
 
         // Pick one of the inflight requests to fulfill
-        const correlationId = requestQueue.inflight.keys().next().value
-        requestQueue.fulfillRequest({
-          correlationId: correlationId,
-          payload,
-          size,
+        let fulfilled
+        requestQueue.inflight.forEach((socketRequest, correlationId) => {
+          if (!fulfilled) {
+            requestQueue.fulfillRequest({
+              correlationId: correlationId,
+              payload,
+              size,
+            })
+            fulfilled = correlationId
+          }
         })
 
         expect(send).toHaveBeenCalled()
@@ -372,11 +377,16 @@ describe('Network > RequestQueue', () => {
       requestQueue.push(request)
 
       // Pick one of the inflight requests to fulfill
-      const correlationId = requestQueue.inflight.keys().next().value
-      requestQueue.fulfillRequest({
-        correlationId,
-        payload,
-        size,
+      let fulfilled
+      requestQueue.inflight.forEach((socketRequest, correlationId) => {
+        if (!fulfilled) {
+          requestQueue.fulfillRequest({
+            correlationId: correlationId,
+            payload,
+            size,
+          })
+          fulfilled = correlationId
+        }
       })
 
       expect(eventCalled).toHaveBeenCalledTimes(2)
