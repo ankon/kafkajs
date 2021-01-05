@@ -519,7 +519,7 @@ export type Logger = {
   warn: (message: string, extra?: object) => void
   debug: (message: string, extra?: object) => void
 
-  createNamespace: (namespace: string, logLevel?: logLevel) => Logger
+  namespace: (namespace: string, logLevel?: logLevel) => Logger
   setLogLevel: (logLevel: logLevel) => void
 }
 
